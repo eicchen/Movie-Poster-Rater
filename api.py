@@ -12,7 +12,10 @@ load_dotenv()
 
 API_KEY = os.environ["TMDB_API_KEY"]
 BASE_URL = "https://api.themoviedb.org/3"
-IMAGE_BASE = "https://image.tmdb.org/t/p/w92"
+IMAGE_BASE = "https://image.tmdb.org/t/p/w154"
+
+#lowest resolution
+# IMAGE_BASE = "https://image.tmdb.org/t/p/w92"
 POSTER_DIR = Path("posters")
 POSTER_DIR.mkdir(exist_ok=True)
 
