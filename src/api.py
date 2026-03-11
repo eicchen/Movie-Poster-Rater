@@ -8,7 +8,9 @@ from tqdm import tqdm
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+ROOT = Path(__file__).resolve().parent.parent
+
+load_dotenv(ROOT / ".env")
 
 API_KEY = os.environ["TMDB_API_KEY"]
 BASE_URL = "https://api.themoviedb.org/3"
@@ -16,7 +18,7 @@ IMAGE_BASE = "https://image.tmdb.org/t/p/w154"
 
 #lowest resolution
 # IMAGE_BASE = "https://image.tmdb.org/t/p/w92"
-POSTER_DIR = Path("posters")
+POSTER_DIR = ROOT / "posters"
 POSTER_DIR.mkdir(exist_ok=True)
 
 MAX_RETRIES = 3
@@ -75,12 +77,15 @@ async def download_poster(session, movie_id, poster_path):
         return str(local)
     return None
 
-async def fetch_genre_list(session, path="genres.json"):
-    if Path(path).exists():
+async def fetch_genre_list(session, path=None):
+    path = path or ROOT / "data" / "genres.json"
+    path = Path(path)
+    if path.exists():
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
     data = await api_request(session, "/genre/movie/list")
     if data:
-        Path(path).write_text(json.dumps(data["genres"]))
+        path.write_text(json.dumps(data["genres"]))
 
 async def fetch_keywords(session, movie_id):
     data = await api_request(session, f"/movie/{movie_id}/keywords")

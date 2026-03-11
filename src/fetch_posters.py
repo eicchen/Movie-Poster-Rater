@@ -5,13 +5,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-load_dotenv()
+ROOT = Path(__file__).resolve().parent.parent
+
+load_dotenv(ROOT / ".env")
 
 API_KEY = os.environ["TMDB_API_KEY"]
 BASE_URL = "https://api.themoviedb.org/3"
 IMAGE_BASE = "https://image.tmdb.org/t/p/original"
 
-OUTPUT_DIR = Path("requested_posters")
+OUTPUT_DIR = ROOT / "requested_posters"
 
 MAX_RETRIES = 3
 CONCURRENT_CONNECTIONS = 20
