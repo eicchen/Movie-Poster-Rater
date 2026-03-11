@@ -1,0 +1,35 @@
+name: poster
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - scikit-image
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - opencv
+  - pillow
+  - tqdm
+  - ipykernel
+  - pytorch
+  - torchvision
+  - torchaudio
+  - aiohttp
+  - python-dotenv
+  - tensorflow
+  - fastparquet
+  - pyarrow
+  - nbformat
+  - pip
+  - pip:
+      - ultralytics
+      - mediapipe
+      - easyocr
+      - open_clip_torch
+      - opennsfw2
+      - pgmpy
