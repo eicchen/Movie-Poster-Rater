@@ -19,17 +19,19 @@ from skimage.feature import local_binary_pattern
 from sklearn.cluster import KMeans
 
 # ---------------------------------------------------------------------------
-# Paths to the model pickles (need to be set globally)
+# Paths to the model pickles (resolved relative to this file)
 # ---------------------------------------------------------------------------
-genre_pickle = "../data/poster_genre_bn_bundle.pkl"
-rating_pickle = "../data/poster_rating_bn_bundle.pkl"
+_THIS_DIR = Path(__file__).resolve().parent
+genre_pickle = str(_THIS_DIR / ".." / "data" / "poster_genre_bn_bundle.pkl")
+rating_pickle = str(_THIS_DIR / ".." / "data" / "poster_rating_bn_bundle.pkl")
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 MAX_SIDE = 1024
-FACE_MODEL_PATH = Path("./face_detector.tflite")
-YOLO_WEIGHTS = "yolov8n.pt"
+_DATA_DIR = _THIS_DIR / ".." / "data"
+FACE_MODEL_PATH = _DATA_DIR / "face_detector.tflite"
+YOLO_WEIGHTS = str(_DATA_DIR / "yolov8n.pt")
 
 CLIP_MODEL_NAME = "ViT-B-32"
 CLIP_PRETRAINED = "laion2b_s34b_b79k"
@@ -1160,3 +1162,32 @@ def ChangeRating(data, target_rating):
     new_distribution = result["best_solution"]["full_probs"]
 
     return {"changed_nodes": changed_nodes, "new_distribution": new_distribution}
+
+
+# ---------------------------------------------------------------------------
+# Example usage
+# ---------------------------------------------------------------------------
+# # Optionally, run this on startup. Otherwise, the first time you run this it'll take a bit longer
+# initialize_feature_models()
+#
+# # First, get the features from your poster
+# poster_path = "eeaaoposter.jpg"
+# poster_data = acquire_poster_data(poster_path)
+#
+# # Now given those features, we can predict genre as so:
+# probs = predict_genre_from_poster_dict(poster_data, genre_pickle)
+# for genre, prob in sorted(probs.items(), key=lambda x: -x[1]):
+#     print(f"{genre}: {prob:.4f}")
+#
+# # And likewise with predicting the movie's rating
+# rating_probs = predict_rating_from_poster_dict(
+#     poster_data,
+#     rating_pickle,
+# )
+# print(rating_probs)
+#
+# # Getting the minimum nodes needed to change projected genre
+# print(ChangeGenre(poster_data, 'Comedy'))
+#
+# # And minimum nodes to change projected rating
+# print(ChangeRating(poster_data, 'high'))
