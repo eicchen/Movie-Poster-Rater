@@ -1,49 +1,32 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[1]:
-
-
-#Paths to the model pickles
-#These need to be set globally
-
-genre_pickle = "poster_genre_bn_bundle.pkl"
-rating_pickle = "poster_rating_bn_bundle.pkl"
-
-
-# In[2]:
-
-
-import sys
-import torch
-# print(torch.cuda.is_available())
-# print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no gpu")
-
-
-# In[3]:
-
-
 from __future__ import annotations
 
-from typing import Dict, Any, List, Tuple, Optional
 import math
-import numpy as np
-from PIL import Image
+import pickle
+import sys
+from copy import deepcopy
+from itertools import combinations, product
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import cv2
 import easyocr
-
+import numpy as np
+from PIL import Image
+from pgmpy.inference import VariableElimination
 from skimage.feature import local_binary_pattern
 from sklearn.cluster import KMeans
 
-from __future__ import annotations
+# ---------------------------------------------------------------------------
+# Paths to the model pickles (need to be set globally)
+# ---------------------------------------------------------------------------
+genre_pickle = "../data/poster_genre_bn_bundle.pkl"
+rating_pickle = "../data/poster_rating_bn_bundle.pkl"
 
-import math
-from pathlib import Path
-
-
-# In[4]:
-
-
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 MAX_SIDE = 1024
 FACE_MODEL_PATH = Path("./face_detector.tflite")
 YOLO_WEIGHTS = "yolov8n.pt"
@@ -81,10 +64,9 @@ CLIP_PROMPTS = {
     "condensed_bold_type": "a movie poster with bold condensed typography",
 }
 
-
-# In[5]:
-
-
+# ---------------------------------------------------------------------------
+# Lazy-loaded model singletons
+# ---------------------------------------------------------------------------
 _TORCH = None
 _DEVICE = None
 
@@ -107,9 +89,6 @@ _NSFW2 = None
 _NSFW2_ERROR = None
 
 
-# In[6]:
-
-
 def get_torch():
     global _TORCH
     if _TORCH is None:
@@ -126,6 +105,9 @@ def get_device() -> str:
     return _DEVICE
 
 
+# ---------------------------------------------------------------------------
+# Image helpers
+# ---------------------------------------------------------------------------
 def load_rgb(path: str, max_side: int = MAX_SIDE) -> np.ndarray:
     img = Image.open(path).convert("RGB")
     w, h = img.size
@@ -154,9 +136,9 @@ def clamp01(x: float) -> float:
     return float(max(0.0, min(1.0, x)))
 
 
-# ----------------------------
+# ---------------------------------------------------------------------------
 # Heavy model getters
-# ----------------------------
+# ---------------------------------------------------------------------------
 def get_yolo_model():
     global _YOLO_MODEL
     if _YOLO_MODEL is None:
@@ -260,9 +242,7 @@ def get_opennsfw2():
 
 
 def initialize_feature_models(verbose: bool = True):
-    """
-    Optional one-time warmup for notebook use.
-    """
+    """Optional one-time warmup for notebook use."""
     status = {}
 
     try:
@@ -302,9 +282,9 @@ def initialize_feature_models(verbose: bool = True):
     return status
 
 
-# ----------------------------
+# ---------------------------------------------------------------------------
 # Feature extractors
-# ----------------------------
+# ---------------------------------------------------------------------------
 def color_features(
     rgb: np.ndarray,
     palette_k: int = 5,
@@ -757,9 +737,9 @@ def clip_features_openclip(rgb: np.ndarray) -> Dict[str, Any]:
         }
 
 
-# ----------------------------
+# ---------------------------------------------------------------------------
 # One-call extractor
-# ----------------------------
+# ---------------------------------------------------------------------------
 def extract_poster_nodes(path: str) -> Dict[str, Any]:
     rgb = load_rgb(path, max_side=MAX_SIDE)
 
@@ -780,10 +760,10 @@ def extract_poster_nodes(path: str) -> Dict[str, Any]:
 
     return nodes
 
+
 def enrich_poster_features(poster_data):
     poster_data = dict(poster_data)
 
-    # only add if the base ingredients exist
     if "visual_center_x" in poster_data and "visual_center_y" in poster_data:
         poster_data["center_distance"] = (
             ((poster_data["visual_center_x"] - 0.5) ** 2 +
@@ -810,18 +790,14 @@ def enrich_poster_features(poster_data):
 
     return poster_data
 
+
 def acquire_poster_data(path):
     return enrich_poster_features(extract_poster_nodes(path))
 
 
-# In[7]:
-
-
-import pickle
-import numpy as np
-from pgmpy.inference import VariableElimination
-
-
+# ---------------------------------------------------------------------------
+# Bayesian network helpers
+# ---------------------------------------------------------------------------
 def flatten_poster_dict(d, parent_key="", sep="."):
     flat = {}
     for k, v in d.items():
@@ -859,7 +835,6 @@ def poster_dict_to_bn_evidence(poster_data, bundle):
 
     evidence = {}
 
-    # numeric features -> binned BN nodes
     for feature_name, spec in bin_specs.items():
         if feature_name not in flat:
             continue
@@ -870,7 +845,6 @@ def poster_dict_to_bn_evidence(poster_data, bundle):
         if binned is not None:
             evidence[col_name] = binned
 
-    # optional boolean-ish nodes ONLY if your model actually used them
     bool_map = {
         "object_flags.has_person": ("present", "absent"),
         "object_flags.has_vehicle": ("present", "absent"),
@@ -887,12 +861,14 @@ def poster_dict_to_bn_evidence(poster_data, bundle):
     return evidence
 
 
+# ---------------------------------------------------------------------------
+# Prediction
+# ---------------------------------------------------------------------------
 def predict_genre_from_poster_dict(
     poster_data,
     bundle_path=genre_pickle,
-    debug=False
+    debug=False,
 ):
-
     with open(bundle_path, "rb") as f:
         bundle = pickle.load(f)
 
@@ -927,7 +903,7 @@ def predict_genre_from_poster_dict(
     q = infer.query(
         variables=["genre"],
         evidence=used_evidence,
-        show_progress=False
+        show_progress=False,
     )
 
     probs = {
@@ -943,20 +919,11 @@ def predict_genre_from_poster_dict(
     return probs
 
 
-# In[8]:
-
-
-from pgmpy.inference import VariableElimination
-import pickle
-import numpy as np
-
-
 def predict_rating_from_poster_dict(
     poster_data,
     bundle_path=rating_pickle,
-    debug=False
+    debug=False,
 ):
-
     with open(bundle_path, "rb") as f:
         bundle = pickle.load(f)
 
@@ -981,7 +948,7 @@ def predict_rating_from_poster_dict(
     q = infer.query(
         variables=["rating_bin"],
         evidence=evidence,
-        show_progress=False
+        show_progress=False,
     )
 
     probs = {
@@ -997,12 +964,9 @@ def predict_rating_from_poster_dict(
     return probs
 
 
-# In[9]:
-
-
-from itertools import combinations, product
-from copy import deepcopy
-
+# ---------------------------------------------------------------------------
+# Counterfactual analysis
+# ---------------------------------------------------------------------------
 def get_bn_evidence_for_poster(poster_data, bundle_path):
     with open(bundle_path, "rb") as f:
         bundle = pickle.load(f)
@@ -1017,17 +981,19 @@ def get_bn_evidence_for_poster(poster_data, bundle_path):
 
     return evidence, bundle
 
+
 def query_target_prob(model, target_node, target_value, evidence):
     infer = VariableElimination(model)
     q = infer.query(
         variables=[target_node],
         evidence=evidence,
-        show_progress=False
+        show_progress=False,
     )
 
     state_names = q.state_names[target_node]
     probs = dict(zip(state_names, q.values))
     return float(probs[target_value]), probs
+
 
 def get_node_states(model, node):
     cpd = model.get_cpds(node)
@@ -1064,7 +1030,6 @@ def find_min_changes_for_target(
     if candidate_nodes is None:
         candidate_nodes = [n for n in evidence.keys() if n != target_node]
 
-    # only consider nodes that actually exist and have >1 possible state
     valid_candidates = []
     node_states = {}
 
@@ -1078,7 +1043,6 @@ def find_min_changes_for_target(
 
     base_prob, base_probs = query_target_prob(model, target_node, target_value, evidence)
 
-    # If already enough, return immediately
     if base_prob >= threshold:
         return {
             "base_prob": base_prob,
@@ -1147,7 +1111,6 @@ def find_min_changes_for_target(
                 "all_solutions_found": found_at_this_k,
             }
 
-    # If no solution meets threshold, return best overall
     if all_solutions:
         best_solution = max(all_solutions, key=lambda s: s["target_prob"])
 
@@ -1159,14 +1122,8 @@ def find_min_changes_for_target(
     }
 
 
-# In[10]:
-
-
 def ChangeGenre(data, target_genre):
-    evidence, bundle = get_bn_evidence_for_poster(
-        data,
-        genre_pickle
-    )
+    evidence, bundle = get_bn_evidence_for_poster(data, genre_pickle)
 
     genre_model = bundle["model"]
 
@@ -1178,22 +1135,16 @@ def ChangeGenre(data, target_genre):
         max_changes=4,
         threshold=0.50,
     )
-    
+
     changed_nodes = result["best_solution"]["changed_nodes"]
     new_distribution = result["best_solution"]["full_probs"]
-    
-    return {'changed_nodes': changed_nodes, 'new_distribution': new_distribution}
 
-
-# In[11]:
+    return {"changed_nodes": changed_nodes, "new_distribution": new_distribution}
 
 
 def ChangeRating(data, target_rating):
-    evidence_r, bundle_r = get_bn_evidence_for_poster(
-        data,
-        rating_pickle
-    )
-    
+    evidence_r, bundle_r = get_bn_evidence_for_poster(data, rating_pickle)
+
     rating_model = bundle_r["model"]
 
     result = find_min_changes_for_target(
@@ -1204,50 +1155,8 @@ def ChangeRating(data, target_rating):
         max_changes=4,
         threshold=0.50,
     )
-    
+
     changed_nodes = result["best_solution"]["changed_nodes"]
     new_distribution = result["best_solution"]["full_probs"]
-    
-    return {'changed_nodes': changed_nodes, 'new_distribution': new_distribution}
 
-
-# In[14]:
-
-
-# #Example usage
-
-
-# #Optionally, run this on startup. Otherwise, the first time you run this it'll take a bit longer
-# initialize_feature_models()
-
-# #First, get the features from your poster
-# poster_path = "eeaaoposter.jpg"
-# poster_data = acquire_poster_data(poster_path)
-
-# #Now given those features, we can predict genre as so:
-# probs = predict_genre_from_poster_dict(poster_data, genre_pickle)
-# for genre, prob in sorted(probs.items(), key=lambda x: -x[1]):
-#     print(f"{genre}: {prob:.4f}")
-
-
-# #And likewise with predicting the movie's rating
-# rating_probs = predict_rating_from_poster_dict(
-#     poster_data,
-#     rating_pickle,
-# )
-# print(rating_probs)
-
-
-# #Getting the minimum nodes needed to change projected genre
-# print(ChangeGenre(poster_data, 'Comedy'))
-
-
-# #And minimum nodes to change projected rating
-# print(ChangeRating(poster_data, 'high'))
-
-
-# In[ ]:
-
-
-
-
+    return {"changed_nodes": changed_nodes, "new_distribution": new_distribution}
