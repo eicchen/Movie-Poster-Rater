@@ -1,17 +1,18 @@
-# Movie Poster Bayesian Net
+# Movie Poster Bayes Net
 
 > *"What can you infer about a movie by looking at its poster?"*
 > 
 > <p style="text-align: right">—Softmax Squad (Eric Chen, Morgan Klutzke, Asher Silverglade)</p>
 
 
-Predicts movie genres and rating buckets from a poster image using a feature-extraction pipeline and Bayesian networks.
+Predicts movie genres and ratings from a poster image using a feature-extraction pipeline and Bayesian networks. Model predictions are investigated through counterfactual analysis—i.e. what about the poster would need to change for the predicted genre/rating to change?
 
 ## Highlights
 + Poster **feature extraction**: color, texture, layout, lighting, blur, negative space.
 + **Visual content signals**: face detection (MediaPipe), object detection (YOLOv8), OCR text features (EasyOCR).
 + **Bayesian network inference** for genre and rating predictions.
 + **Counterfactual analysis** helpers to suggest minimal feature changes to shift predicted genre or rating.
++ Generate altered poster to **visualize counterfactual explanation**.
 
 ## Repository Layout
 ```
@@ -36,8 +37,11 @@ Predicts movie genres and rating buckets from a poster image using a feature-ext
 │   ├── fetch_posters.py
 │   └── main.py
 ├── .gitignore
+├── ImageToGenre_CleanInferface.ipynb
+├── README.md
 ├── environment.yaml                      # Conda environment definition
-├── main.ipynb
-└── README.md
+└── main.ipynb
 ```
 
+## Data Source
+[The Movie Database (TMDB)](https://www.themoviedb.org/?language=en-US)
